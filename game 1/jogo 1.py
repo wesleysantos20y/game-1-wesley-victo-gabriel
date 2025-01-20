@@ -1,5 +1,6 @@
 import pygame
 import random
+import time
 
 # Inicialização do Pygame
 pygame.init()
@@ -41,7 +42,6 @@ def load_background(image_path):
     if background is not None:
         return scale_image(background, screen_width, screen_height)
     else:
-        # Se a imagem não foi carregada, retornar uma tela preta
         return pygame.Surface((screen_width, screen_height))
 
 # Função para carregar a imagem do personagem
@@ -54,10 +54,6 @@ def load_enemy_image(image_path):
 
 # Função para carregar a imagem da explosão
 def load_explosion_image(image_path):
-    return load_image(image_path)
-
-# Função para carregar a imagem do power-up
-def load_powerup_image(image_path):
     return load_image(image_path)
 
 # Sons
@@ -81,7 +77,7 @@ class Explosion(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         self.image = load_explosion_image('explosao.png')  # Imagem da explosão
-        self.image = scale_image(self.image, 50, 50)
+        self.image = scale_image(self.image, 50, 50)  # Ajustando tamanho
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.duration = 30  # Duração da explosão em frames
@@ -107,10 +103,16 @@ class Player(pygame.sprite.Sprite):
 
     def update(self):
         keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT] and self.rect.left > 0:
-            self.rect.x -= self.speed
-        if keys[pygame.K_RIGHT] and self.rect.right < screen_width:
-            self.rect.x += self.speed
+
+        # Movimentação com as teclas A, W, S, D
+        if keys[pygame.K_a] and self.rect.left > 0:
+            self.rect.x -= self.speed  # Mover para a esquerda
+        if keys[pygame.K_d] and self.rect.right < screen_width:
+            self.rect.x += self.speed  # Mover para a direita
+        if keys[pygame.K_w] and self.rect.top > 0:
+            self.rect.y -= self.speed  # Mover para cima
+        if keys[pygame.K_s] and self.rect.bottom < screen_height:
+            self.rect.y += self.speed  # Mover para baixo
         
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
@@ -129,19 +131,6 @@ class Player(pygame.sprite.Sprite):
             self.kill()  # Remove o personagem quando morrer
             return True
         return False
-
-    def gain_xp(self, amount):
-        self.xp += amount
-        while self.xp >= self.xp_for_next_level():
-            self.level_up()
-
-    def xp_for_next_level(self):
-        return 100 * self.level ** 2
-
-    def level_up(self):
-        self.level += 1
-        self.xp = 0
-        print(f"Parabéns! Você subiu para o nível {self.level}!")
 
 # Classe do tiro
 class Bullet(pygame.sprite.Sprite):
@@ -180,7 +169,6 @@ all_sprites = pygame.sprite.Group()
 bullets = pygame.sprite.Group()
 enemies = pygame.sprite.Group()
 explosions = pygame.sprite.Group()
-powerups = pygame.sprite.Group()
 
 # Criar o jogador
 player = Player()
@@ -209,23 +197,55 @@ def restart_game():
         all_sprites.add(enemy)
         enemies.add(enemy)
 
+# Tela de Carregamento (barra de progresso)
+def display_loading_screen(progress):
+    screen.fill(BLACK)
+    font = pygame.font.SysFont('Arial', 40)
+    loading_text = font.render('Carregando...', True, WHITE)
+    loading_rect = loading_text.get_rect(center=(screen_width // 2, screen_height // 2 - 30))
+    screen.blit(loading_text, loading_rect)
+
+    # Barra de progresso
+    pygame.draw.rect(screen, WHITE, (screen_width // 4, screen_height // 2, screen_width // 2, 30))
+    pygame.draw.rect(screen, GREEN, (screen_width // 4, screen_height // 2, (screen_width // 2) * progress, 30))  # Progresso
+    
+    pygame.display.flip()
+
+# Função de carregamento
+def load_resources():
+    resources = [
+        'espaço.png', 'player_1.png', 'inimigo.png', 'explosao.png', 'musica_fundo.mp3', 'tiro.mp3', 'explosao.mp3'
+    ]
+    total_resources = len(resources)
+    loaded = 0
+    for resource in resources:
+        if resource.endswith('.png'):
+            load_image(resource)
+        elif resource.endswith('.mp3'):
+            load_sound(resource)
+        loaded += 1
+        display_loading_screen(loaded / total_resources)  # Atualiza a barra de progresso
+        pygame.time.wait(100)  # Simula um pequeno atraso para o carregamento dos recursos
+
 # Tela inicial (logo e mensagem "Press Start to Play")
 def display_start_screen():
     start_font = pygame.font.SysFont('Arial', 50)
     start_text = start_font.render('Press Start to Play', True, WHITE)
     start_text_rect = start_text.get_rect(center=(screen_width // 2, screen_height // 2))
-
-    # Exibir logo
-    logo_image = pygame.image.load('logo.png')  # Caminho para a imagem da logo
+    
+    # Exibir fundo
+    logo_image = pygame.image.load('logo.png')  # Tente carregar a imagem da logo
     logo_image = scale_image(logo_image, screen_width, screen_height)  # Ajusta para tela cheia
     screen.blit(logo_image, (0, 0))
-
-    # Exibir a mensagem "Press Start to Play"
+    
     screen.blit(start_text, start_text_rect)
     pygame.display.flip()
 
 # Carregar fundo inicial
 espaço_image = load_background('espaço.png')  # Tente carregar o fundo
+
+# Carregar recursos antes de começar o jogo
+load_resources()
 
 # Loop principal do jogo
 pygame.mixer.music.play(-1)  # Reproduzir música de fundo em loop
@@ -247,8 +267,6 @@ while running:
 
     else:
         clock.tick(FPS)
-
-        # Eventos
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -270,7 +288,6 @@ while running:
                 score += 10
                 explosion_sound.play()  # Som de explosão
                 for _ in enemy_hit:
-                    # Criar explosão
                     explosion = Explosion(bullet.rect.centerx, bullet.rect.centery)
                     all_sprites.add(explosion)
                     explosions.add(explosion)
@@ -282,11 +299,10 @@ while running:
 
         # Verificar colisões do jogador com inimigos
         if pygame.sprite.spritecollide(player, enemies, False):
-            if player.hit(10):
+            if player.hit(10):  # Reduz a vida do jogador quando colide
                 game_over = True
                 explosion = Explosion(player.rect.centerx, player.rect.centery)
                 all_sprites.add(explosion)
-                explosions.add(explosion)
 
         # Desenhar
         screen.blit(espaço_image, (0, 0))  # Desenha o fundo
@@ -299,20 +315,13 @@ while running:
         lives_text = font.render(f'Vidas: {player.health}', True, WHITE)
         screen.blit(lives_text, (screen_width - 150, 10))
 
-        level_text = font.render(f'Nível: {player.level}', True, WHITE)
-        screen.blit(level_text, (screen_width // 2 - 50, 10))
-
-        # Tela de Game Over
         if game_over:
             game_over_text = font.render('GAME OVER', True, RED)
             screen.blit(game_over_text, (screen_width // 2 - 100, screen_height // 2 - 30))
             restart_text = font.render('Pressione R para Reiniciar', True, WHITE)
             screen.blit(restart_text, (screen_width // 2 - 150, screen_height // 2 + 30))
 
-        # Atualizar tela
         pygame.display.flip()
 
-# Finalizar
 pygame.quit()
-
 
